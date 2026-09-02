@@ -1,0 +1,68 @@
+# Dependencies
+node_modules/
+client/node_modules/
+.venv/
+venv/
+env/
+ENV/
+
+# Environment and Secrets
+.env
+.env.local
+.env.*.local
+client/.env
+client/.env.local
+client/.env.*.local
+*.pem
+*.key
+*.cert
+serviceAccountKey.json
+*credentials*.json
+*secret*.json
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Frontend builds
+client/dist/
+dist/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Antigravity / AI assistant internal caches
+.gemini/
+.agents/cache/
