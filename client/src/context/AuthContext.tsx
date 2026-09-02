@@ -44,48 +44,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     let unsubscribe: (() => void) | undefined;
 
     const setupAuth = async () => {
-      // 1. Check if user was logged in via Demo Mode
-      const savedDemoUser = localStorage.getItem("food_journal_demo_user");
-      if (savedDemoUser) {
-        try {
-          const parsed = JSON.parse(savedDemoUser);
-          setUser(parsed);
-          setToken(`demo-token-${parsed.uid}`);
-          setLoading(false);
-          return;
-        } catch {
-          localStorage.removeItem("food_journal_demo_user");
-        }
-      }
+      const timeoutId = setTimeout(() => {
+        setLoading(false);
+      }, 1500);
 
-      // 2. Fetch runtime config if needed and attach listener
-      const currentAuth = await initFirebaseAsync();
-      if (currentAuth) {
-        setActiveAuth(currentAuth);
-        unsubscribe = onAuthStateChanged(currentAuth, async (fbUser: User | null) => {
-          if (fbUser) {
-            try {
-              const idToken = await fbUser.getIdToken();
-              const authUser: AuthUser = {
-                uid: fbUser.uid,
-                email: fbUser.email,
-                displayName: fbUser.displayName || (fbUser.email ? fbUser.email.split("@")[0] : "User"),
-                photoURL: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fbUser.email || "User")}`,
-                isDemo: false,
-              };
-              localStorage.removeItem("food_journal_demo_user");
-              setUser(authUser);
-              setToken(idToken);
-            } catch (err) {
-              console.error("Failed to get Firebase token:", err);
-            }
-          } else if (!localStorage.getItem("food_journal_demo_user")) {
-            setUser(null);
-            setToken(null);
+      try {
+        // 1. Check if user was logged in via Demo Mode
+        const savedDemoUser = localStorage.getItem("food_journal_demo_user");
+        if (savedDemoUser) {
+          try {
+            const parsed = JSON.parse(savedDemoUser);
+            setUser(parsed);
+            setToken(`demo-token-${parsed.uid}`);
+            setLoading(false);
+            clearTimeout(timeoutId);
+            return;
+          } catch {
+            localStorage.removeItem("food_journal_demo_user");
           }
+        }
+
+        // 2. Fetch runtime config if needed and attach listener
+        const currentAuth = await initFirebaseAsync();
+        if (currentAuth) {
+          setActiveAuth(currentAuth);
+          unsubscribe = onAuthStateChanged(currentAuth, async (fbUser: User | null) => {
+            clearTimeout(timeoutId);
+            if (fbUser) {
+              try {
+                const idToken = await fbUser.getIdToken();
+                const authUser: AuthUser = {
+                  uid: fbUser.uid,
+                  email: fbUser.email,
+                  displayName: fbUser.displayName || (fbUser.email ? fbUser.email.split("@")[0] : "User"),
+                  photoURL: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fbUser.email || "User")}`,
+                  isDemo: false,
+                };
+                localStorage.removeItem("food_journal_demo_user");
+                setUser(authUser);
+                setToken(idToken);
+              } catch (err) {
+                console.error("Failed to get Firebase token:", err);
+              }
+            } else if (!localStorage.getItem("food_journal_demo_user")) {
+              setUser(null);
+              setToken(null);
+            }
+            setLoading(false);
+          });
+        } else {
           setLoading(false);
-        });
-      } else {
+        }
+      } catch (err) {
+        console.error("Auth initialization error:", err);
         setLoading(false);
       }
     };
