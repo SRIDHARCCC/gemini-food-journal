@@ -22,26 +22,35 @@ class BaseVertexAgent:
 
     def _init_client(self):
         try:
-            self.client = genai.Client(
-                vertexai=True,
-                project=self.project_id,
-                location=self.region,
-            )
-            self._active_model_name = self.primary_model
-            logger.info(
-                f"Vertex AI Client initialized on project {self.project_id} (region {self.region}), target model: {self.primary_model}"
-            )
+            api_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+            if api_key:
+                self.client = genai.Client(api_key=api_key)
+                self._active_model_name = self.primary_model
+                logger.info(f"GenAI Client initialized with API Key, target model: {self.primary_model}")
+            elif self.project_id and self.project_id != "your-gcp-project-id":
+                self.client = genai.Client(
+                    vertexai=True,
+                    project=self.project_id,
+                    location=self.region,
+                )
+                self._active_model_name = self.primary_model
+                logger.info(
+                    f"Vertex AI Client initialized on project {self.project_id} (region {self.region}), target model: {self.primary_model}"
+                )
+            else:
+                # Attempt default genai client
+                try:
+                    self.client = genai.Client()
+                    self._active_model_name = self.primary_model
+                except Exception:
+                    self.client = None
         except Exception as e:
-            logger.warning(f"Vertex AI Client initialization warning: {e}")
+            logger.warning(f"GenAI/Vertex AI Client initialization warning: {e}")
             self.client = None
 
-    def get_client(self) -> genai.Client:
+    def get_client(self) -> Optional[genai.Client]:
         if self.client is None:
             self._init_client()
-        if self.client is None:
-            raise RuntimeError(
-                f"Vertex AI Client unavailable. Ensure Google Cloud ADC is active on project '{self.project_id}'."
-            )
         return self.client
 
     def get_model_candidates(self) -> List[str]:

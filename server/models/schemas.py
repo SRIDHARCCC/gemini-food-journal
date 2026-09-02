@@ -75,3 +75,18 @@ class DailyMacroSummary(BaseModel):
     total_fat_g: float
     log_count: int
     logs: List[FoodLogEntry] = []
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant", "system"]
+    content: str
+    timestamp: Optional[str] = None
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., description="User message to Gemini Nutritionist")
+    history: Optional[List[ChatMessage]] = Field(default=[], description="Previous conversation turns")
+    user_goals: Optional[str] = Field(None, description="Optional user dietary goals or health context")
+
+class ChatResponse(BaseModel):
+    response: str = Field(..., description="Gemini Nutrition Coach response text")
+    suggestions: List[str] = Field(default=[], description="Suggested follow-up questions or actions")
+

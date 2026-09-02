@@ -17,20 +17,26 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   defaultMode?: "signin" | "signup";
+  initialError?: string | null;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
   isOpen,
   onClose,
   defaultMode = "signin",
+  initialError = null,
 }) => {
   const { loginWithEmail, signupWithEmail, loginWithGoogle, loginAsDemo } = useAuth();
   const [mode, setMode] = useState<"signin" | "signup">(defaultMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(initialError);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  React.useEffect(() => {
+    if (initialError) setErrorMsg(initialError);
+  }, [initialError, isOpen]);
 
   if (!isOpen) return null;
 

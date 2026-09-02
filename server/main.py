@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from server.config import settings
-from server.routes import parse_router, logs_router, insights_router, health_router
+from server.routes import parse_router, logs_router, insights_router, health_router, chat_router
 from server.telemetry.structured_logger import log_event
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,7 @@ app.include_router(health_router)
 app.include_router(parse_router)
 app.include_router(logs_router)
 app.include_router(insights_router)
+app.include_router(chat_router)
 
 # Mount Frontend Static Assets if built
 client_dist_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "client", "dist")

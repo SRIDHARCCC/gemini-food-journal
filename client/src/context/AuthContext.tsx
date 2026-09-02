@@ -159,10 +159,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithGoogle = async () => {
-    const authInstance = activeAuth || (await initFirebaseAsync());
-    if (!authInstance) throw new Error("Firebase Auth is not initialized. Please configure your Firebase environment variables or use Demo Mode.");
+    const authInstance = (await initFirebaseAsync()) || activeAuth;
+    if (!authInstance || !authInstance.app.options.apiKey || authInstance.app.options.apiKey === "DEMO_KEY_LOCAL_FALLBACK") {
+      throw new Error("Firebase Authentication is not configured with a valid API key yet. Please set FIREBASE_WEB_API_KEY or explore with the Demo Profile.");
+    }
     setLoading(true);
     try {
+      googleProvider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(authInstance, googleProvider);
       const idToken = await result.user.getIdToken();
       localStorage.removeItem("food_journal_demo_user");

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { Navbar } from "./components/Navbar";
+import { FoodLogger } from "./components/FoodLogger";
 import { ChatInterface } from "./components/ChatInterface";
 import { FoodLogTimeline } from "./components/FoodLogTimeline";
 import { InsightsDashboard } from "./components/InsightsDashboard";
@@ -28,6 +29,7 @@ const MainApp: React.FC = () => {
   const [notification, setNotification] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState<boolean>(false);
   const [authModalMode, setAuthModalMode] = useState<"signin" | "signup">("signin");
+  const [authModalError, setAuthModalError] = useState<string | null>(null);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -36,8 +38,17 @@ const MainApp: React.FC = () => {
 
   const handleGoogleClick = async () => {
     try {
+      setAuthModalError(null);
       await loginWithGoogle();
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Google Auth error:", err);
+      let friendly = err.message || "Google Sign-In failed.";
+      if (err.code === "auth/popup-closed-by-user") {
+        friendly = "Google Sign-In popup was closed.";
+      } else if (err.code === "auth/unauthorized-domain") {
+        friendly = "This domain is not in your Firebase Authorized Domains list. Please add your Cloud Run domain in Firebase Console -> Authentication -> Settings -> Authorized Domains.";
+      }
+      setAuthModalError(friendly);
       setAuthModalMode("signin");
       setShowAuthModal(true);
     }
@@ -203,6 +214,7 @@ const MainApp: React.FC = () => {
           isOpen={showAuthModal}
           onClose={() => setShowAuthModal(false)}
           defaultMode={authModalMode}
+          initialError={authModalError}
         />
       </div>
     );
@@ -253,22 +265,41 @@ const MainApp: React.FC = () => {
 
         {/* Tab Views */}
         {activeTab === "journal" && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <ChatInterface
-                onDraftReady={(draft) => setActiveDraft(draft)}
-                onLogSavedSuccessfully={() => setRefreshTrigger((prev) => prev + 1)}
-              />
+          <div className="space-y-6">
+            {/* Dual Panel: Field 1 (Food Logger) & Field 2 (2-Way Interactive Chatbot) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+              {/* Field 1: Meal Logger (Text & Plate Image) */}
+              <div className="w-full">
+                <FoodLogger
+                  onDraftReady={(draft) => setActiveDraft(draft)}
+                  onLogSavedSuccessfully={() => setRefreshTrigger((prev) => prev + 1)}
+                />
+              </div>
+
+              {/* Field 2: 2-Way Interactive AI Nutritionist Chatbot */}
+              <div className="w-full">
+                <ChatInterface refreshTrigger={refreshTrigger} />
+              </div>
             </div>
-            <div className="space-y-6">
-              <div className="bg-gradient-to-tr from-blue-900 to-indigo-950 text-white rounded-2xl p-5 shadow-sm space-y-3">
+
+            {/* Quick Food Log Timeline Section */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-2">
-                  <Sparkles className="w-4 h-4 text-blue-400" />
-                  <h4 className="text-sm font-bold">Draft & Verify Guardrail</h4>
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Today's Logged Meals & Macronutrient Progress</h3>
+                    <p className="text-xs text-slate-500">Firestore-persisted meals synced with your Gemini Nutrition Coach</p>
+                  </div>
                 </div>
-                <p className="text-xs text-slate-300 leading-relaxed">
-                  Every food intake is parsed provisionally by Gemini 3.7 Flash. Nothing is committed to your isolated Firestore account until you review and adjust portions.
-                </p>
+                <button
+                  onClick={() => setActiveTab("logs")}
+                  className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline"
+                >
+                  View Full Timeline &rarr;
+                </button>
               </div>
               <FoodLogTimeline onRefreshTrigger={refreshTrigger} />
             </div>
@@ -303,6 +334,7 @@ const MainApp: React.FC = () => {
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
         defaultMode={authModalMode}
+        initialError={authModalError}
       />
     </div>
   );

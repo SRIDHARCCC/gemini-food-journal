@@ -12,6 +12,7 @@ from .tools import (
     verify_macro_energy_balance_func,
     NUTRITION_DATABASE,
 )
+from .nutrition_coach import NutritionCoachAgent, nutrition_coach_agent
 from .adk_agent import food_nutrition_adk_agent, adk_workflow, ADKAgentWorkflow
 
 __all__ = [
@@ -22,6 +23,8 @@ __all__ = [
     "nutrition_grounding_agent",
     "LongitudinalInsightsAgent",
     "longitudinal_insights_agent",
+    "NutritionCoachAgent",
+    "nutrition_coach_agent",
     "FoodJournalOrchestrator",
     "orchestrator",
     "nutrition_lookup_tool",

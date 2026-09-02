@@ -78,6 +78,23 @@ export interface LongitudinalInsightsResponse {
   avg_daily_fat_g: number;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+  timestamp?: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  history?: ChatMessage[];
+  user_goals?: string;
+}
+
+export interface ChatResponse {
+  response: string;
+  suggestions: string[];
+}
+
 const API_BASE = "/api";
 
 async function authFetch(url: string, token: string | null, options: RequestInit = {}) {
@@ -162,6 +179,13 @@ export const api = {
         method: "GET",
       }
     );
+  },
+
+  async sendChatMessage(token: string | null, payload: ChatRequest): Promise<ChatResponse> {
+    return authFetch(`${API_BASE}/chat`, token, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   },
 
   async getHealth(): Promise<any> {

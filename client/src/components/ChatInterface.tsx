@@ -1,164 +1,221 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
-import { api, MealParseResponse } from "../services/api";
-import { ImageUploader } from "./ImageUploader";
-import { 
-  Send, 
-  Sparkles, 
-  User, 
-  Loader2, 
-  Camera, 
-  Zap, 
+import { api, ChatMessage } from "../services/api";
+import {
+  Send,
+  Sparkles,
+  User,
+  Loader2,
+  Bot,
+  Target,
+  HelpCircle,
+  TrendingUp,
+  HeartPulse,
+  RefreshCw
 } from "lucide-react";
 
-interface Message {
-  id: string;
-  sender: "user" | "gemini";
-  text: string;
-  image?: string;
-  timestamp: string;
-  draft?: MealParseResponse;
-}
-
 interface ChatInterfaceProps {
-  onDraftReady: (draft: MealParseResponse) => void;
-  onLogSavedSuccessfully: () => void;
+  refreshTrigger?: number;
 }
 
-const QUICK_PROMPTS = [
-  "2 Rotis with Moong Dal and Cucumber Salad for lunch",
-  "Oatmeal with Almond Milk, Chia Seeds, and Blueberries",
-  "Grilled Chicken Breast with Steamed Broccoli and Brown Rice",
-  "Greek Yogurt with Honey, Walnuts, and Strawberries"
+const STARTER_SUGGESTIONS = [
+  "How are my macros and calories today?",
+  "What should I eat for dinner based on my logged meals?",
+  "Suggest a high-protein vegetarian snack",
+  "Rate my meal balance today and give suggestions"
 ];
 
-export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onDraftReady }) => {
+const PRESET_GOALS = [
+  "Weight Loss & Calorie Deficit",
+  "Lean Muscle Building (High Protein)",
+  "Blood Sugar & Diabetic Friendly",
+  "Clean Eating & Balanced Energy"
+];
+
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ refreshTrigger }) => {
   const { getToken, user } = useAuth();
   const [inputText, setInputText] = useState("");
-  const [imageBase64, setImageBase64] = useState<string | null>(null);
-  const [imageMimeType, setImageMimeType] = useState<string>("image/jpeg");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showImageUploader, setShowImageUploader] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
+  const [userGoal, setUserGoal] = useState<string>("Weight Loss & Calorie Deficit");
+  const [showGoalSelector, setShowGoalSelector] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>(STARTER_SUGGESTIONS);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  const [messages, setMessages] = useState<ChatMessage[]>([
     {
-      id: "welcome",
-      sender: "gemini",
-      text: "Hello! I am your Personal Gemini Food Journal assistant powered by Gemini 3.7 Flash. Tell me what you ate or snap a picture of your plate to get started.",
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      role: "assistant",
+      content: "👋 Hello! I am your AI Clinical Nutrition Coach powered by Gemini on Vertex AI. I have live access to your logged meals. Ask me for personalized meal reviews, recipe tweaks, dietary suggestions, or help with your goals!",
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     }
   ]);
 
-  const handleSendMessage = async (customPrompt?: string) => {
-    const textToSend = customPrompt !== undefined ? customPrompt : inputText;
-    if ((!textToSend.trim() && !imageBase64) || isAnalyzing) return;
-
-    const userMessage: Message = {
-      id: "msg_" + Date.now(),
-      sender: "user",
-      text: textToSend,
-      image: imageBase64 || undefined,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputText("");
-    const sentImageBase64 = imageBase64;
-    const sentImageMimeType = imageMimeType;
-    setImageBase64(null);
-    setShowImageUploader(false);
-    setIsAnalyzing(true);
-
-    try {
-      const token = await getToken();
-      const draft = await api.parseMeal(token, {
-        text: textToSend || undefined,
-        image_base64: sentImageBase64 || undefined,
-        image_mime_type: sentImageMimeType,
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTo({
+        top: chatContainerRef.current.scrollHeight,
+        behavior: "smooth"
       });
-
-      const geminiMessage: Message = {
-        id: "msg_gemini_" + Date.now(),
-        sender: "gemini",
-        text: `I've analyzed your meal (${draft.meal_type}) with ${Math.round(draft.confidence_score * 100)}% confidence: ${draft.total_calories} kcal (${draft.total_protein_g}g Protein, ${draft.total_carbs_g}g Carbs, ${draft.total_fat_g}g Fat). Please review and confirm the draft.`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        draft: draft,
-      };
-
-      setMessages((prev) => [...prev, geminiMessage]);
-      onDraftReady(draft);
-    } catch (err: any) {
-      const errorMessage: Message = {
-        id: "msg_err_" + Date.now(),
-        sender: "gemini",
-        text: `Failed to analyze meal: ${err.message || "Please check connection or backend logs."}`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
+  const handleSendMessage = async (textToSend?: string) => {
+    const message = textToSend !== undefined ? textToSend : inputText;
+    if (!message.trim() || isLoading) return;
+
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: message.trim(),
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setInputText("");
+    setIsLoading(true);
+
+    try {
+      const token = await getToken();
+      const chatRes = await api.sendChatMessage(token, {
+        message: message.trim(),
+        history: messages,
+        user_goals: userGoal
+      });
+
+      const assistantMsg: ChatMessage = {
+        role: "assistant",
+        content: chatRes.response,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      };
+
+      setMessages((prev) => [...prev, assistantMsg]);
+      if (chatRes.suggestions && chatRes.suggestions.length > 0) {
+        setSuggestions(chatRes.suggestions);
+      }
+    } catch (err: any) {
+      console.error("Chat error:", err);
+      const errorMsg: ChatMessage = {
+        role: "assistant",
+        content: `I'm having a little trouble connecting right now: ${err.message || "Please check your network."}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetChat = () => {
+    setMessages([
+      {
+        role: "assistant",
+        content: "👋 Chat reset! How can I help you with your nutrition or meal choices right now?",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      }
+    ]);
+    setSuggestions(STARTER_SUGGESTIONS);
+  };
+
   return (
-    <div className="flex flex-col h-[75vh] bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-      
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[650px] sm:h-[720px] max-h-[85vh]">
       {/* Header */}
-      <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-sm">
-            <Sparkles className="w-4 h-4" />
+      <div className="p-4 sm:p-5 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center space-x-3">
+          <div className="w-10 h-10 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center text-blue-100 shadow-inner">
+            <Bot className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900">Multimodal Food Assistant</h3>
-            <p className="text-[11px] text-slate-500">Gemini 3.7 Flash &bull; Medium Thinking Level Ingestion</p>
+            <h3 className="font-bold text-base tracking-tight">2. Two-Way AI Nutrition Coach</h3>
+            <p className="text-xs text-blue-100">Live discussion & advice tailored to your logged meals</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowImageUploader(!showImageUploader)}
-          className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-            showImageUploader || imageBase64
-              ? "bg-blue-50 text-blue-700 border-blue-200"
-              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-          }`}
-        >
-          <Camera className="w-3.5 h-3.5 text-blue-600" />
-          <span>{imageBase64 ? "Image Attached" : "Add Plate Photo"}</span>
-        </button>
+
+        <div className="flex items-center space-x-2">
+          <button
+            type="button"
+            onClick={() => setShowGoalSelector(!showGoalSelector)}
+            className="px-2.5 py-1 bg-white/15 hover:bg-white/25 rounded-lg text-xs font-semibold flex items-center space-x-1 backdrop-blur-sm transition-all"
+            title="Set Health Goal"
+          >
+            <Target className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Goal: {userGoal.split(" ")[0]}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleResetChat}
+            className="p-1.5 bg-white/15 hover:bg-white/25 rounded-lg text-blue-100 hover:text-white transition-all"
+            title="Clear Chat"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Optional Image Uploader Drawer */}
-      {showImageUploader && (
-        <div className="p-4 bg-slate-50/80 border-b border-slate-200 animate-in slide-in-from-top-2 duration-200">
-          <ImageUploader
-            selectedImageBase64={imageBase64}
-            onImageSelected={(b64, mime) => {
-              setImageBase64(b64);
-              setImageMimeType(mime);
-              if (!b64) setShowImageUploader(false);
-            }}
-          />
+      {/* Goal Selector Drawer */}
+      {showGoalSelector && (
+        <div className="p-3 bg-blue-50/90 border-b border-blue-200 text-xs animate-in slide-in-from-top-2 duration-200 flex-shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-bold text-blue-900">Select Your Primary Health & Dietary Focus:</span>
+            <button
+              onClick={() => setShowGoalSelector(false)}
+              className="text-[11px] text-blue-600 hover:underline font-semibold"
+            >
+              Done
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {PRESET_GOALS.map((goal) => (
+              <button
+                key={goal}
+                type="button"
+                onClick={() => {
+                  setUserGoal(goal);
+                  setShowGoalSelector(false);
+                }}
+                className={`p-2 rounded-lg text-left text-[11px] font-semibold border transition-all ${
+                  userGoal === goal
+                    ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                    : "bg-white text-slate-700 border-blue-200 hover:bg-blue-100/50"
+                }`}
+              >
+                {goal}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
+      {/* Context Badge */}
+      <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 flex-shrink-0">
+        <div className="flex items-center space-x-1.5">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="font-medium">Context Active: Gemini has access to your Firestore meal history</span>
+        </div>
+        <span className="text-[10px] bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-bold">
+          Goal: {userGoal}
+        </span>
+      </div>
+
       {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-        {messages.map((msg) => (
+      <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4 min-h-0">
+        {messages.map((msg, idx) => (
           <div
-            key={msg.id}
+            key={idx}
             className={`flex items-start space-x-3 ${
-              msg.sender === "user" ? "flex-row-reverse space-x-reverse" : "flex-row"
+              msg.role === "user" ? "flex-row-reverse space-x-reverse" : "flex-row"
             }`}
           >
             {/* Avatar */}
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs shadow-sm ${
-                msg.sender === "user"
+                msg.role === "user"
                   ? "bg-blue-600 text-white"
                   : "bg-gradient-to-tr from-purple-600 to-indigo-600 text-white"
               }`}
             >
-              {msg.sender === "user" ? (
+              {msg.role === "user" ? (
                 user?.displayName ? user.displayName.charAt(0).toUpperCase() : <User className="w-4 h-4" />
               ) : (
                 <Sparkles className="w-4 h-4" />
@@ -167,79 +224,56 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onDraftReady }) =>
 
             {/* Message Bubble */}
             <div
-              className={`max-w-[82%] sm:max-w-[70%] rounded-2xl p-4 text-xs space-y-2 leading-relaxed ${
-                msg.sender === "user"
+              className={`max-w-[85%] sm:max-w-[78%] rounded-2xl p-4 text-xs sm:text-sm leading-relaxed ${
+                msg.role === "user"
                   ? "bg-blue-600 text-white rounded-tr-none shadow-sm"
-                  : "bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200/70 shadow-sm"
+                  : "bg-slate-100 text-slate-800 rounded-tl-none border border-slate-200/80 shadow-sm"
               }`}
             >
-              {msg.image && (
-                <div className="rounded-xl overflow-hidden border border-white/20 mb-2">
-                  <img src={msg.image} alt="Uploaded meal" className="w-full max-h-48 object-cover" />
+              <div className="whitespace-pre-wrap">{msg.content}</div>
+              {msg.timestamp && (
+                <div
+                  className={`text-[9px] text-right mt-1.5 font-medium ${
+                    msg.role === "user" ? "text-blue-200" : "text-slate-400"
+                  }`}
+                >
+                  {msg.timestamp}
                 </div>
               )}
-              {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
-
-              {/* Action pill to reopen draft review */}
-              {msg.draft && (
-                <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                  <span className="text-[10px] text-slate-500 font-medium">Draft generated</span>
-                  <button
-                    onClick={() => onDraftReady(msg.draft!)}
-                    className="px-2.5 py-1 rounded-lg bg-blue-600 text-white text-[10px] font-bold hover:bg-blue-700 transition-colors shadow-sm"
-                  >
-                    Open Review Modal
-                  </button>
-                </div>
-              )}
-
-              <div
-                className={`text-[9px] text-right font-medium ${
-                  msg.sender === "user" ? "text-blue-100" : "text-slate-400"
-                }`}
-              >
-                {msg.timestamp}
-              </div>
             </div>
           </div>
         ))}
 
-        {/* Gemini Thinking / Analyzing State */}
-        {isAnalyzing && (
+        {/* Typing / Thinking Indicator */}
+        {isLoading && (
           <div className="flex items-start space-x-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
               <Sparkles className="w-4 h-4 animate-spin" />
             </div>
-            <div className="bg-slate-100 border border-slate-200/80 rounded-2xl rounded-tl-none p-4 text-xs text-slate-700 max-w-sm space-y-2 animate-shimmer">
-              <div className="flex items-center space-x-2 font-bold text-indigo-700">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Gemini 3.7 Flash Thinking...</span>
-              </div>
-              <p className="text-[11px] text-slate-600">
-                Deconstructing ingredients, estimating portion weights, and calculating macronutrient density on Vertex AI.
-              </p>
+            <div className="bg-slate-100 border border-slate-200 rounded-2xl rounded-tl-none p-3.5 text-xs text-slate-700 flex items-center space-x-2">
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+              <span className="font-medium text-slate-600">Gemini is evaluating your nutrition data...</span>
             </div>
           </div>
         )}
       </div>
 
-      {/* Quick Prompt Suggestions */}
-      {messages.length <= 2 && (
+      {/* Suggested Follow-up Chips */}
+      {suggestions.length > 0 && !isLoading && (
         <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 overflow-x-auto">
           <div className="flex items-center space-x-2 min-w-max">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-1">
-              <Zap className="w-3 h-3 text-amber-500" />
-              <span>Examples:</span>
+              <HelpCircle className="w-3 h-3 text-indigo-500" />
+              <span>Suggestions:</span>
             </span>
-            {QUICK_PROMPTS.map((prompt, idx) => (
+            {suggestions.map((sug, i) => (
               <button
-                key={idx}
+                key={i}
                 type="button"
-                onClick={() => handleSendMessage(prompt)}
-                disabled={isAnalyzing}
-                className="px-2.5 py-1 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200 rounded-full text-[11px] transition-all"
+                onClick={() => handleSendMessage(sug)}
+                className="px-2.5 py-1 bg-white hover:bg-blue-50 text-slate-700 hover:text-blue-700 border border-slate-200 hover:border-blue-200 rounded-full text-[11px] font-medium transition-all shadow-2xs"
               >
-                {prompt}
+                {sug}
               </button>
             ))}
           </div>
@@ -252,43 +286,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({ onDraftReady }) =>
           e.preventDefault();
           handleSendMessage();
         }}
-        className="p-3 bg-white border-t border-slate-200 flex items-center space-x-2"
+        className="p-3 sm:p-4 bg-white border-t border-slate-200 flex items-center space-x-2"
       >
-        <button
-          type="button"
-          onClick={() => setShowImageUploader(!showImageUploader)}
-          className={`p-2 rounded-xl border transition-colors ${
-            imageBase64
-              ? "bg-blue-50 text-blue-600 border-blue-200"
-              : "text-slate-500 hover:text-slate-800 hover:bg-slate-100 border-slate-200"
-          }`}
-          title="Upload or Snap Meal Image"
-        >
-          <Camera className="w-5 h-5" />
-        </button>
-
         <input
           type="text"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
-          placeholder={
-            imageBase64
-              ? "Add optional text context (e.g., 'half a cup of sambar')..."
-              : "Type your meal (e.g., '2 scrambled eggs with toast and black coffee')..."
-          }
-          disabled={isAnalyzing}
-          className="flex-1 px-4 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 placeholder:text-slate-400"
+          placeholder="Ask Gemini anything (e.g. 'Is my lunch too high in carbs?', 'What should I eat next?')"
+          disabled={isLoading}
+          className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
         />
-
         <button
           type="submit"
-          disabled={isAnalyzing || (!inputText.trim() && !imageBase64)}
-          className="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/20 disabled:opacity-40 transition-all flex items-center justify-center"
+          disabled={!inputText.trim() || isLoading}
+          className="p-2.5 sm:px-4 sm:py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white rounded-xl font-bold text-xs sm:text-sm shadow-md shadow-blue-600/20 flex items-center justify-center space-x-1.5 transition-all"
         >
-          {isAnalyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          <Send className="w-4 h-4" />
+          <span className="hidden sm:inline">Send</span>
         </button>
       </form>
-
     </div>
   );
 };
