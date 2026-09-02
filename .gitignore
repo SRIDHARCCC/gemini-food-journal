@@ -63,6 +63,6 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Antigravity / AI assistant internal caches
+# Antigravity / AI assistant internal caches & skills
 .gemini/
-.agents/cache/
+.agents/
