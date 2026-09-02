@@ -88,7 +88,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       } else if (err.code === "auth/popup-blocked") {
         friendly = "Popup was blocked by your browser. Please allow popups or use Email & Password sign-in.";
       } else if (err.code === "auth/unauthorized-domain") {
-        friendly = "This domain is not authorized in Firebase Console.";
+        friendly = "This domain is not yet authorized in Firebase Console -> Authentication -> Settings -> Authorized Domains. Please add your Cloud Run domain there.";
       }
       setErrorMsg(friendly);
     } finally {

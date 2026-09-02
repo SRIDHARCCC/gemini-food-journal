@@ -1,4 +1,4 @@
-import { initializeApp, getApps, FirebaseApp } from "firebase/app";
+import { initializeApp, getApps, FirebaseApp, deleteApp } from "firebase/app";
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -37,7 +37,7 @@ let auth: Auth | null = null;
 const googleProvider = new GoogleAuthProvider();
 
 export const initFirebaseAsync = async (): Promise<Auth | null> => {
-  if (auth && app && defaultFirebaseConfig.apiKey) {
+  if (auth && app && app.options.apiKey && app.options.apiKey !== "DEMO_KEY_LOCAL_FALLBACK") {
     return auth;
   }
   try {
@@ -46,7 +46,13 @@ export const initFirebaseAsync = async (): Promise<Auth | null> => {
       const remoteConfig = await res.json();
       if (remoteConfig.apiKey) {
         if (getApps().length > 0) {
-          app = getApps()[0];
+          const existing = getApps()[0];
+          if (existing.options.apiKey !== remoteConfig.apiKey) {
+            await deleteApp(existing);
+            app = initializeApp(remoteConfig);
+          } else {
+            app = existing;
+          }
         } else {
           app = initializeApp(remoteConfig);
         }
@@ -57,6 +63,17 @@ export const initFirebaseAsync = async (): Promise<Auth | null> => {
   } catch (err) {
     console.warn("Could not fetch remote Firebase config:", err);
   }
+
+  if (!app) {
+    const config = getSavedFirebaseConfig();
+    app = getApps().length > 0 ? getApps()[0] : initializeApp({
+      apiKey: config.apiKey || "DEMO_KEY_LOCAL_FALLBACK",
+      authDomain: config.authDomain,
+      projectId: config.projectId,
+      appId: config.appId || "demo-app-id"
+    });
+    auth = getAuth(app);
+  }
   return auth;
 };
 
@@ -65,18 +82,9 @@ try {
   if (config.apiKey) {
     app = getApps().length > 0 ? getApps()[0] : initializeApp(config);
     auth = getAuth(app);
-  } else {
-    // If no Firebase API key is configured yet, initialize with dummy config for local demo
-    app = getApps().length > 0 ? getApps()[0] : initializeApp({
-      apiKey: "DEMO_KEY_LOCAL_FALLBACK",
-      authDomain: config.authDomain,
-      projectId: config.projectId,
-      appId: config.appId || "demo-app-id"
-    });
-    auth = getAuth(app);
   }
 } catch (err) {
-  console.warn("Firebase client initialization warning:", err);
+  console.warn("Firebase client initial setup:", err);
 }
 
 export { 
