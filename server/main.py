@@ -81,4 +81,5 @@ if os.path.exists(client_dist_path):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("server.main:app", host=settings.HOST, port=settings.PORT, reload=True)
+    is_dev = settings.ENV == "development"
+    uvicorn.run("server.main:app", host=settings.HOST, port=settings.PORT, reload=is_dev)
