@@ -2,6 +2,12 @@
 
 An enterprise-grade, secure, multimodal dietary journaling and longitudinal health reasoning application powered by **Gemini 3.7 Flash** on **Google Cloud Vertex AI**, built with **Google Agent Development Kit (ADK)**, **Firebase Authentication**, and **Google Cloud Firestore**.
 
+[![Live Cloud Run Demo](https://img.shields.io/badge/Live%20Demo-Cloud%20Run-brightgreen?logo=google-cloud)](https://gemini-food-journal-885572607365.us-central1.run.app)
+[![AI Engine](https://img.shields.io/badge/Model-Gemini%203.7%20Flash-blue?logo=google)](https://cloud.google.com/vertex-ai)
+[![Security](https://img.shields.io/badge/Security-Zero%20API%20Keys%20%7C%20IAM%20ADC-emerald)](https://cloud.google.com/docs/authentication)
+
+🚀 **Live Production Deployment:** [https://gemini-food-journal-885572607365.us-central1.run.app](https://gemini-food-journal-885572607365.us-central1.run.app)
+
 ---
 
 ## 🌟 Key Capabilities
@@ -65,15 +71,18 @@ An enterprise-grade, secure, multimodal dietary journaling and longitudinal heal
 
 ```
 gemini-food-journal/
-├── .agents/
-│   └── rules/
-│       └── security-constitution.md   # Six Non-Negotiable Security Mandates
+├── .env.example                       # Environment variables template
+├── .gitignore                         # Git exclusion rules
+├── .dockerignore                      # Docker build exclusions
+├── Dockerfile                         # Production multi-stage Dockerfile
+├── requirements.txt                   # Production Python dependencies
 ├── firestore.rules                    # Declarative Multi-tenant Firestore Security Rules
 ├── pytest.ini                         # Pytest configuration
 ├── PRD_Personal_Gemini_Food_Journal.md # Product Requirements Document
+├── security-constitution.md           # Six Non-Negotiable Security Mandates
 ├── server/
 │   ├── config.py                      # Application & GCP project config
-│   ├── main.py                        # FastAPI application entry point
+│   ├── main.py                        # FastAPI application entry point (serves API & SPA)
 │   ├── auth/
 │   │   └── firebase_auth.py           # Firebase Bearer token verification
 │   ├── db/
@@ -116,6 +125,7 @@ gemini-food-journal/
 │           ├── MacroProgressBar.tsx   # Visual target macro progress bars
 │           └── InsightsDashboard.tsx  # 7d/30d Longitudinal insights dashboard
 └── tests/
+    ├── test_adk_tools.py              # ADK tool validation tests
     ├── test_auth.py                   # 401 Unauthorized enforcement tests
     ├── test_firestore_isolation.py    # Multi-tenant path isolation tests
     ├── test_parser_agent.py           # Schema & nutrition grounding tests
@@ -125,7 +135,7 @@ gemini-food-journal/
 
 ---
 
-## 🚀 Quick Start Guide
+## 🚀 Quick Start & Deployment Guide
 
 ### Prerequisites
 - Python 3.12+
@@ -133,29 +143,41 @@ gemini-food-journal/
 - Google Cloud Project with Vertex AI & Firestore enabled
 - Google Cloud CLI (`gcloud auth application-default login`)
 
-### 1. Backend Setup & Tests
+### 1. Backend Setup & Automated Tests
 ```bash
-# Verify Python packages
-pip install google-adk google-genai google-cloud-firestore firebase-admin fastapi uvicorn pydantic pytest
+# Install Python dependencies
+pip install -r requirements.txt
 
 # Run automated test suite (16 tests)
 pytest -v
 ```
 
-### 2. Build Frontend
+### 2. Local Frontend Build & Run
 ```bash
+# Build React frontend
 cd client
 npm install
 npm run build
 cd ..
-```
 
-### 3. Run Application Server
-```bash
-# Start FastAPI server (serves API and compiled React frontend)
+# Start application server locally
 python -m server.main
 ```
 Navigate to `http://localhost:8080` in your web browser.
+
+---
+
+## ☁️ Google Cloud Run Deployment
+
+Deploy the entire full-stack application with a single command using Google Cloud Build and Cloud Run:
+
+```bash
+gcloud run deploy gemini-food-journal \
+  --source . \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars "GCP_PROJECT_ID=your-gcp-project-id,GCP_REGION=us-central1,PRIMARY_MODEL=gemini-3.7-flash,MODEL_NAME=gemini-3.7-flash,FIREBASE_PROJECT_ID=your-gcp-project-id,ENV=production"
+```
 
 ---
 
