@@ -70,7 +70,11 @@ client_dist_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "cli
 if os.path.exists(client_dist_path):
     app.mount("/assets", StaticFiles(directory=os.path.join(client_dist_path, "assets")), name="assets")
 
-    @app.get("/{full_path:path}")
+    @app.api_route("/", methods=["GET", "HEAD"])
+    async def serve_root():
+        return FileResponse(os.path.join(client_dist_path, "index.html"))
+
+    @app.api_route("/{full_path:path}", methods=["GET", "HEAD"])
     async def serve_spa(full_path: str):
         if full_path.startswith("api/"):
             return {"error": "Not Found"}
