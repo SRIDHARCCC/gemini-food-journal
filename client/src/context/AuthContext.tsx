@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { 
-  auth, 
+  auth as initialAuth, 
+  initFirebaseAsync,
   googleProvider, 
   signInWithPopup, 
   signInWithEmailAndPassword,
@@ -37,58 +38,70 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [activeAuth, setActiveAuth] = useState(initialAuth);
 
   useEffect(() => {
-    // 1. Check if user was logged in via Demo Mode
-    const savedDemoUser = localStorage.getItem("food_journal_demo_user");
-    if (savedDemoUser) {
-      try {
-        const parsed = JSON.parse(savedDemoUser);
-        setUser(parsed);
-        setToken(`demo-token-${parsed.uid}`);
-        setLoading(false);
-        return;
-      } catch {
-        localStorage.removeItem("food_journal_demo_user");
-      }
-    }
+    let unsubscribe: (() => void) | undefined;
 
-    // 2. Listen to real Firebase Auth state changes
-    if (auth) {
-      const unsubscribe = onAuthStateChanged(auth, async (fbUser: User | null) => {
-        if (fbUser) {
-          try {
-            const idToken = await fbUser.getIdToken();
-            const authUser: AuthUser = {
-              uid: fbUser.uid,
-              email: fbUser.email,
-              displayName: fbUser.displayName || (fbUser.email ? fbUser.email.split("@")[0] : "User"),
-              photoURL: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fbUser.email || "User")}`,
-              isDemo: false,
-            };
-            localStorage.removeItem("food_journal_demo_user");
-            setUser(authUser);
-            setToken(idToken);
-          } catch (err) {
-            console.error("Failed to get Firebase token:", err);
-          }
-        } else if (!localStorage.getItem("food_journal_demo_user")) {
-          setUser(null);
-          setToken(null);
+    const setupAuth = async () => {
+      // 1. Check if user was logged in via Demo Mode
+      const savedDemoUser = localStorage.getItem("food_journal_demo_user");
+      if (savedDemoUser) {
+        try {
+          const parsed = JSON.parse(savedDemoUser);
+          setUser(parsed);
+          setToken(`demo-token-${parsed.uid}`);
+          setLoading(false);
+          return;
+        } catch {
+          localStorage.removeItem("food_journal_demo_user");
         }
+      }
+
+      // 2. Fetch runtime config if needed and attach listener
+      const currentAuth = await initFirebaseAsync();
+      if (currentAuth) {
+        setActiveAuth(currentAuth);
+        unsubscribe = onAuthStateChanged(currentAuth, async (fbUser: User | null) => {
+          if (fbUser) {
+            try {
+              const idToken = await fbUser.getIdToken();
+              const authUser: AuthUser = {
+                uid: fbUser.uid,
+                email: fbUser.email,
+                displayName: fbUser.displayName || (fbUser.email ? fbUser.email.split("@")[0] : "User"),
+                photoURL: fbUser.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fbUser.email || "User")}`,
+                isDemo: false,
+              };
+              localStorage.removeItem("food_journal_demo_user");
+              setUser(authUser);
+              setToken(idToken);
+            } catch (err) {
+              console.error("Failed to get Firebase token:", err);
+            }
+          } else if (!localStorage.getItem("food_journal_demo_user")) {
+            setUser(null);
+            setToken(null);
+          }
+          setLoading(false);
+        });
+      } else {
         setLoading(false);
-      });
-      return () => unsubscribe();
-    } else {
-      setLoading(false);
-    }
+      }
+    };
+
+    setupAuth();
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const loginWithEmail = async (email: string, pass: string) => {
-    if (!auth) throw new Error("Firebase Auth is not initialized. Please configure your Firebase environment variables or use Demo Mode.");
+    const authInstance = activeAuth || (await initFirebaseAsync());
+    if (!authInstance) throw new Error("Firebase Auth is not initialized. Please configure your Firebase environment variables or use Demo Mode.");
     setLoading(true);
     try {
-      const res = await signInWithEmailAndPassword(auth, email.trim(), pass);
+      const res = await signInWithEmailAndPassword(authInstance, email.trim(), pass);
       const idToken = await res.user.getIdToken();
       localStorage.removeItem("food_journal_demo_user");
       setUser({
@@ -108,10 +121,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signupWithEmail = async (email: string, pass: string, displayName: string) => {
-    if (!auth) throw new Error("Firebase Auth is not initialized. Please configure your Firebase environment variables or use Demo Mode.");
+    const authInstance = activeAuth || (await initFirebaseAsync());
+    if (!authInstance) throw new Error("Firebase Auth is not initialized. Please configure your Firebase environment variables or use Demo Mode.");
     setLoading(true);
     try {
-      const res = await createUserWithEmailAndPassword(auth, email.trim(), pass);
+      const res = await createUserWithEmailAndPassword(authInstance, email.trim(), pass);
       if (displayName.trim()) {
         await updateProfile(res.user, { displayName: displayName.trim() });
       }
@@ -134,10 +148,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithGoogle = async () => {
-    if (!auth) throw new Error("Firebase Auth is not initialized. Please configure your Firebase environment variables or use Demo Mode.");
+    const authInstance = activeAuth || (await initFirebaseAsync());
+    if (!authInstance) throw new Error("Firebase Auth is not initialized. Please configure your Firebase environment variables or use Demo Mode.");
     setLoading(true);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(authInstance, googleProvider);
       const idToken = await result.user.getIdToken();
       localStorage.removeItem("food_journal_demo_user");
       setUser({
@@ -175,9 +190,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     setLoading(true);
     localStorage.removeItem("food_journal_demo_user");
-    if (auth && auth.currentUser) {
+    const authInstance = activeAuth || (await initFirebaseAsync());
+    if (authInstance && authInstance.currentUser) {
       try {
-        await fbSignOut(auth);
+        await fbSignOut(authInstance);
       } catch {}
     }
     setUser(null);
@@ -189,8 +205,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user?.isDemo) {
       return `demo-token-${user.uid}`;
     }
-    if (auth && auth.currentUser) {
-      return await auth.currentUser.getIdToken();
+    const authInstance = activeAuth || (await initFirebaseAsync());
+    if (authInstance && authInstance.currentUser) {
+      return await authInstance.currentUser.getIdToken();
     }
     return token;
   };

@@ -36,6 +36,30 @@ let app: FirebaseApp | undefined;
 let auth: Auth | null = null;
 const googleProvider = new GoogleAuthProvider();
 
+export const initFirebaseAsync = async (): Promise<Auth | null> => {
+  if (auth && app && defaultFirebaseConfig.apiKey) {
+    return auth;
+  }
+  try {
+    const res = await fetch("/api/config/firebase");
+    if (res.ok) {
+      const remoteConfig = await res.json();
+      if (remoteConfig.apiKey) {
+        if (getApps().length > 0) {
+          app = getApps()[0];
+        } else {
+          app = initializeApp(remoteConfig);
+        }
+        auth = getAuth(app);
+        return auth;
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch remote Firebase config:", err);
+  }
+  return auth;
+};
+
 try {
   const config = getSavedFirebaseConfig();
   if (config.apiKey) {
